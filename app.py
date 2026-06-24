@@ -118,7 +118,7 @@ def build_docx(students, year_group, subject):
 
                 run_logo = p_logo.add_run()
                 try:
-                    run_logo.add_picture(logo_path, width=Cm(1.5))
+                    run_logo.add_picture(logo_path, width=Cm(1.8))
                 except:
                     pass
 
