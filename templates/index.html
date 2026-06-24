@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>STMP Label Generator</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f4f4;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        button {
+            background: #2c6bed;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1b4fb3;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h2>STMP Label Generator</h2>
+
+    <form action="/generate" method="post" enctype="multipart/form-data">
+
+        <label>Upload Student Spreadsheet</label>
+        <input type="file" name="file" required>
+
+        <label>Year Group</label>
+        <select name="year_group">
+            <option>1</option><option>2</option><option>3</option>
+            <option>4</option><option>5</option><option>6</option>
+        </select>
+
+        <label>Subject</label>
+        <select name="subject">
+            <option>Math</option>
+            <option>English</option>
+            <option>Science</option>
+            <option>Spanish</option>
+            <option>Art and Design</option>
+            <option>Guided Reading</option>
+            <option>Extended Writing</option>
+            <option>Design and Technology</option>
+            <option>Homework</option>
+            <option>Religious Education</option>
+            <option>Geography</option>
+            <option>History</option>
+        </select>
+
+        <button type="submit">Generate Labels (Download Word)</button>
+
+    </form>
+
+</div>
+
+</body>
+</html>
