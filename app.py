@@ -44,7 +44,7 @@ def format_name(name):
 
         return f"{firstname} {surname}"
 
-    return namef
+    return name
 
 def chunk_list(data, size):
     """Split list into chunks of 8"""
