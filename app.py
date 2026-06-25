@@ -17,12 +17,12 @@ SUBJECT_ICONS = {
     "Spanish": "Spanish Icon.png",
     "Art and Design": "Art and Design Icon.png",
     "Guided Reading": "Guided Reading Icon.png",
-    "Extended Writing": "Extended Writing Icon.png",
     "Design and Technology": "Design and Technology Icon.png",
     "Homework": "Homework Icon.png",
     "Religious Education": "Religious Education Icon.png",
     "Geography": "Geography Icon.png",
-    "History": "History Icon.png"
+    "History": "History Icon.png",
+    "Music": "Music Icon.png"
 }
 
 
@@ -53,7 +53,7 @@ def chunk_list(data, size):
 
 
 from docx import Document
-from docx.shared import Cm, Pt
+from docx.shared import Cm, Pt, Mm
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.enum.table import WD_ROW_HEIGHT_RULE
 from io import BytesIO
@@ -64,7 +64,19 @@ def chunk_list(data, size):
     """Splits students into groups of 8 (1 page each)"""
     for i in range(0, len(data), size):
         yield data[i:i + size]
+from docx.oxml.ns import qn
 
+FONT_NAME = "NTPreCursivefk"
+
+def apply_font(run, size):
+    run.font.name = FONT_NAME
+    run.font.size = Pt(size)
+    run.bold = True
+
+    run._element.rPr.rFonts.set(
+        qn('w:eastAsia'),
+        FONT_NAME
+    )
 
 def build_docx(students, year_group, subject):
     doc = Document()
@@ -76,8 +88,8 @@ def build_docx(students, year_group, subject):
     section.page_width = Cm(21)
     section.page_height = Cm(29.7)
 
-    section.top_margin = Cm(1.0)
-    section.bottom_margin = Cm(1.0)
+    section.top_margin = Cm(1.2)
+    section.bottom_margin = Cm(1.2)
     section.left_margin = Cm(0.8)
     section.right_margin = Cm(0.8)
 
@@ -122,52 +134,80 @@ def build_docx(students, year_group, subject):
 
                 student = page_students[idx]
                 student = format_name(student)
+                
+# =========================
+# LOGO
+# =========================
+p_logo = cell.paragraphs[0]
 
-                # =========================
-                # LOGO
-                # =========================
-                p_logo = cell.paragraphs[0]
-                p_logo.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+p_logo.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
 
-                run_logo = p_logo.add_run()
-                try:
-                    run_logo.add_picture(logo_path, width=Cm(1.8))
-                except:
-                    pass
+# move logo 2mm right
+p_logo.paragraph_format.left_indent = Mm(2)
+
+run_logo = p_logo.add_run()
+
+try:
+    run_logo.add_picture(
+        logo_path,
+        width=Cm(1.8)
+    )
+except:
+    pass
 
                 # =========================
                 # STUDENT NAME
                 # =========================
                 p1 = cell.add_paragraph()
-                p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-                r1 = p1.add_run(student)
-                r1.bold = True
-                r1.font.size = Pt(14)
+p1.paragraph_format.left_indent = Mm(2)
+p1.paragraph_format.right_indent = Mm(2)
+
+p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+               r1 = p1.add_run(student)
+
+apply_font(r1, 18)
+
+                r1.font.size = Pt(18)
 
                 # =========================
                 # SUBJECT
                 # =========================
                 p2 = cell.add_paragraph()
-                p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+p2.paragraph_format.left_indent = Mm(2)
+p2.paragraph_format.right_indent = Mm(2)
+
+p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
                 r2 = p2.add_run(subject)
-                r2.font.size = Pt(12)
+
+apply_font(r2, 16)
 
                 # =========================
                 # YEAR GROUP
                 # =========================
                 p3 = cell.add_paragraph()
-                p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-                r3 = p3.add_run(f"Year {year_group}")
-                r3.font.size = Pt(12)
+p3.paragraph_format.left_indent = Mm(2)
+p3.paragraph_format.right_indent = Mm(2)
+
+p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+
+              r3 = p3.add_run(f"Year {year_group}")
+
+apply_font(r3, 16)
 
                 # =========================
                 # ICON
                 # =========================
-                p_icon = cell.add_paragraph()
-                p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+               p_icon = cell.add_paragraph()
+
+# keep icon inside safe area
+p_icon.paragraph_format.right_indent = Mm(2)
+
+p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
 
                 run_icon = p_icon.add_run()
                 try:
