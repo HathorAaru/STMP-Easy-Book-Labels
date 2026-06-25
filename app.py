@@ -27,12 +27,24 @@ SUBJECT_ICONS = {
 
 
 def format_name(name):
-    """Convert 'Surname, Firstname' → 'Firstname Surname'"""
-    if "," in name:
-        parts = name.split(",")
-        return parts[1].strip() + " " + parts[0].strip()
-    return name
+    """
+    Converts:
+    'Surname, Firstname'
+    into:
+    'Firstname Surname'
+    """
 
+    name = str(name).strip()
+
+    if "," in name:
+        surname, firstname = name.split(",", 1)
+
+        surname = surname.strip()
+        firstname = firstname.strip()
+
+        return f"{firstname} {surname}"
+
+    return namef
 
 def chunk_list(data, size):
     """Split list into chunks of 8"""
@@ -109,6 +121,7 @@ def build_docx(students, year_group, subject):
                     continue
 
                 student = page_students[idx]
+                student = format_name(student)
 
                 # =========================
                 # LOGO
