@@ -1,8 +1,9 @@
 from flask import Flask, render_template, request, send_file
 import pandas as pd
 from docx import Document
-from docx.shared import Inches, Pt
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Cm, Pt
+from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.enum.table import WD_ROW_HEIGHT_RULE
 import os
 from io import BytesIO
 
@@ -10,6 +11,9 @@ app = Flask(__name__)
 
 ASSETS = "assets"
 
+# =========================
+# SUBJECT ICONS
+# =========================
 SUBJECT_ICONS = {
     "Math": "Math Icon.png",
     "English": "English Icon.png",
@@ -25,65 +29,42 @@ SUBJECT_ICONS = {
     "Music": "Music Icon.png"
 }
 
-
+# =========================
+# FORMAT NAME
+# =========================
 def format_name(name):
     """
     Converts:
     'Surname, Firstname'
-    into:
-    'Firstname Surname'
+    → 'Firstname Surname'
     """
-
     name = str(name).strip()
 
     if "," in name:
         surname, firstname = name.split(",", 1)
-
         surname = surname.strip()
         firstname = firstname.strip()
-
         return f"{firstname} {surname}"
 
     return name
 
+
+# =========================
+# SPLIT INTO PAGES
+# =========================
 def chunk_list(data, size):
-    """Split list into chunks of 8"""
     for i in range(0, len(data), size):
         yield data[i:i + size]
 
 
-from docx import Document
-from docx.shared import Cm, Pt, Mm
-from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
-from docx.enum.table import WD_ROW_HEIGHT_RULE
-from io import BytesIO
-import os
-
-
-def chunk_list(data, size):
-    """Splits students into groups of 8 (1 page each)"""
-    for i in range(0, len(data), size):
-        yield data[i:i + size]
-from docx.oxml.ns import qn
-
-FONT_NAME = "NTPreCursivefk"
-
-def apply_font(run, size):
-    run.font.name = FONT_NAME
-    run.font.size = Pt(size)
-    run.bold = True
-
-    run._element.rPr.rFonts.set(
-        qn('w:eastAsia'),
-        FONT_NAME
-    )
-
+# =========================
+# BUILD WORD DOCUMENT
+# =========================
 def build_docx(students, year_group, subject):
+
     doc = Document()
 
-    # =========================
-    # PAGE SETUP (A4)
-    # =========================
+    # A4 PAGE SETUP
     section = doc.sections[0]
     section.page_width = Cm(21)
     section.page_height = Cm(29.7)
@@ -103,111 +84,80 @@ def build_docx(students, year_group, subject):
     logo_path = os.path.join(ASSETS, "STMP Logo.png")
     icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
 
-    # =========================
-    # MULTI-PAGE LOOP (IMPORTANT FIX)
-    # =========================
     pages = list(chunk_list(students, LABELS_PER_PAGE))
 
+    # =========================
+    # CREATE EACH PAGE
+    # =========================
     for page_index, page_students in enumerate(pages):
 
         table = doc.add_table(rows=ROWS, cols=COLS)
         table.autofit = False
 
-        # enforce row height stability
+        # FIX ROW HEIGHTS
         for row in table.rows:
             row.height = label_height
             row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
         # =========================
-        # BUILD 8 LABELS PER PAGE
+        # FILL LABELS
         # =========================
         for r in range(ROWS):
             for c in range(COLS):
 
                 idx = r * COLS + c
-                cell = table.cell(r, c)
-                cell.width = label_width
-
-                # skip empty cells (last page safety)
                 if idx >= len(page_students):
                     continue
 
-                student = page_students[idx]
-                student = format_name(student)
-                
-# =========================
-# LOGO
-# =========================
-p_logo = cell.paragraphs[0]
+                student = format_name(page_students[idx])
+                cell = table.cell(r, c)
+                cell.width = label_width
 
-p_logo.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+                # =====================
+                # LOGO (TOP LEFT)
+                # =====================
+                p_logo = cell.paragraphs[0]
+                p_logo.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
 
-# move logo 2mm right
-p_logo.paragraph_format.left_indent = Mm(2)
+                run_logo = p_logo.add_run()
+                try:
+                    run_logo.add_picture(logo_path, width=Cm(1.8))
+                except:
+                    pass
 
-run_logo = p_logo.add_run()
-
-try:
-    run_logo.add_picture(
-        logo_path,
-        width=Cm(1.8)
-    )
-except:
-    pass
-
-                # =========================
+                # =====================
                 # STUDENT NAME
-                # =========================
+                # =====================
                 p1 = cell.add_paragraph()
+                p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-p1.paragraph_format.left_indent = Mm(2)
-p1.paragraph_format.right_indent = Mm(2)
-
-p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-
-               r1 = p1.add_run(student)
-
-apply_font(r1, 18)
-
+                r1 = p1.add_run(student)
+                r1.bold = True
                 r1.font.size = Pt(18)
 
-                # =========================
+                # =====================
                 # SUBJECT
-                # =========================
+                # =====================
                 p2 = cell.add_paragraph()
-
-p2.paragraph_format.left_indent = Mm(2)
-p2.paragraph_format.right_indent = Mm(2)
-
-p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+                p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
                 r2 = p2.add_run(subject)
+                r2.font.size = Pt(16)
 
-apply_font(r2, 16)
-
-                # =========================
+                # =====================
                 # YEAR GROUP
-                # =========================
+                # =====================
                 p3 = cell.add_paragraph()
+                p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
-p3.paragraph_format.left_indent = Mm(2)
-p3.paragraph_format.right_indent = Mm(2)
+                r3 = p3.add_run(f"Year {year_group}")
+                r3.font.size = Pt(16)
 
-p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-
-              r3 = p3.add_run(f"Year {year_group}")
-
-apply_font(r3, 16)
-
-                # =========================
-                # ICON
-                # =========================
-               p_icon = cell.add_paragraph()
-
-# keep icon inside safe area
-p_icon.paragraph_format.right_indent = Mm(2)
-
-p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+                # =====================
+                # ICON (BOTTOM RIGHT)
+                # =====================
+                p_icon = cell.add_paragraph()
+                p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
 
                 run_icon = p_icon.add_run()
                 try:
@@ -215,20 +165,19 @@ p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
                 except:
                     pass
 
-        # =========================
-        # PAGE BREAK (CRITICAL FIX)
-        # =========================
+        # PAGE BREAK
         if page_index < len(pages) - 1:
             doc.add_page_break()
 
-    # =========================
-    # RETURN FILE
-    # =========================
     buffer = BytesIO()
     doc.save(buffer)
     buffer.seek(0)
     return buffer
 
+
+# =========================
+# ROUTES
+# =========================
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -253,5 +202,8 @@ def generate():
     )
 
 
+# =========================
+# RUN (RENDER SAFE)
+# =========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
