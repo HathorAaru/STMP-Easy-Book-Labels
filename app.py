@@ -31,7 +31,6 @@ SUBJECT_ICONS = {
     "Music": "Music Icon.png"
 }
 
-
 # =========================
 # FORMAT NAME
 # =========================
@@ -54,7 +53,7 @@ def chunk_list(data, size):
 
 
 # =========================
-# SET CELL MARGINS (CRITICAL)
+# CELL MARGINS
 # =========================
 def set_cell_margins(cell, top=80, bottom=80, left=80, right=80):
     tc = cell._tc
@@ -72,7 +71,7 @@ def set_cell_margins(cell, top=80, bottom=80, left=80, right=80):
 
 
 # =========================
-# BUILD DOCX (AVERY L7165)
+# BUILD DOCX
 # =========================
 def build_docx(students, year_group, subject):
 
@@ -85,16 +84,15 @@ def build_docx(students, year_group, subject):
     section.page_width = Mm(210)
     section.page_height = Mm(297)
 
-    # Top/Bottom margins (requested)
+    # UPDATED MARGINS (YOUR REQUEST)
     section.top_margin = Mm(12)
     section.bottom_margin = Mm(12)
 
-    # Side margins
     section.left_margin = Mm(5)
     section.right_margin = Mm(5)
 
     # =========================
-    # AVERY L7165 LABEL SIZE
+    # LABEL SPECS (AVERY L7165)
     # =========================
     LABEL_W = Mm(99.06)
     LABEL_H = Mm(67.73)
@@ -113,11 +111,6 @@ def build_docx(students, year_group, subject):
         table = doc.add_table(rows=ROWS, cols=COLS)
         table.autofit = False
 
-        # FORCE COLUMN WIDTHS
-        for col in table.columns:
-            for cell in col.cells:
-                cell.width = LABEL_W
-
         # FORCE ROW HEIGHTS
         for row in table.rows:
             row.height = LABEL_H
@@ -129,10 +122,10 @@ def build_docx(students, year_group, subject):
                 idx = r * COLS + c
                 cell = table.cell(r, c)
 
-                # Clear cell
+                # clear cell content
                 cell.text = ""
 
-                # Apply strict margins to prevent overflow between labels
+                # prevents overflow into adjacent labels
                 set_cell_margins(cell, top=70, bottom=70, left=70, right=70)
 
                 if idx >= len(students):
@@ -141,7 +134,7 @@ def build_docx(students, year_group, subject):
                 student = format_name(students[idx])
 
                 # =========================
-                # LOGO (TOP)
+                # LOGO (TOP LEFT, FIXED)
                 # =========================
                 p_logo = cell.paragraphs[0]
                 p_logo.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
@@ -153,13 +146,13 @@ def build_docx(students, year_group, subject):
                     pass
 
                 # =========================
-                # STUDENT NAME
+                # STUDENT NAME (WRAPS NATURALLY)
                 # =========================
                 p1 = cell.add_paragraph()
                 p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                 r1 = p1.add_run(student)
                 r1.bold = True
-                r1.font.size = Pt(18)
+                r1.font.size = Pt(16)
 
                 # =========================
                 # SUBJECT
@@ -167,7 +160,7 @@ def build_docx(students, year_group, subject):
                 p2 = cell.add_paragraph()
                 p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                 r2 = p2.add_run(subject)
-                r2.font.size = Pt(16)
+                r2.font.size = Pt(14)
 
                 # =========================
                 # YEAR GROUP
@@ -175,7 +168,7 @@ def build_docx(students, year_group, subject):
                 p3 = cell.add_paragraph()
                 p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                 r3 = p3.add_run(f"Year {year_group}")
-                r3.font.size = Pt(16)
+                r3.font.size = Pt(14)
 
                 # =========================
                 # SPACER
@@ -183,14 +176,14 @@ def build_docx(students, year_group, subject):
                 cell.add_paragraph()
 
                 # =========================
-                # ICON (BOTTOM RIGHT)
+                # ICON (BOTTOM RIGHT, FIXED)
                 # =========================
                 p_icon = cell.add_paragraph()
                 p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
 
                 run_icon = p_icon.add_run()
                 try:
-                    run_icon.add_picture(icon_path, width=Mm(16))
+                    run_icon.add_picture(icon_path, width=Mm(14))
                 except:
                     pass
 
@@ -231,7 +224,7 @@ def generate():
 
 
 # =========================
-# RUN
+# RUN APP
 # =========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
