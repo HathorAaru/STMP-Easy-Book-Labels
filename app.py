@@ -112,6 +112,8 @@ def build_docx(students, year_group, subject):
                 student = format_name(page_students[idx])
                 cell = table.cell(r, c)
                 cell.width = label_width
+                for paragraph in cell.paragraphs:
+                    paragraph.paragraph_format.space_before = Pt(4)
 
                 # =====================
                 # LOGO (TOP LEFT)
