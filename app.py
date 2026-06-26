@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, send_file
 import pandas as pd
 from docx import Document
-from docx.shared import Cm, Pt
+from docx.shared import Cm, Pt, Mm
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.enum.table import WD_ROW_HEIGHT_RULE
 import os
@@ -33,11 +33,6 @@ SUBJECT_ICONS = {
 # FORMAT NAME
 # =========================
 def format_name(name):
-    """
-    Converts:
-    'Surname, Firstname'
-    → 'Firstname Surname'
-    """
     name = str(name).strip()
 
     if "," in name:
@@ -64,7 +59,6 @@ def build_docx(students, year_group, subject):
 
     doc = Document()
 
-    # A4 PAGE SETUP
     section = doc.sections[0]
     section.page_width = Cm(21)
     section.page_height = Cm(29.7)
@@ -86,22 +80,17 @@ def build_docx(students, year_group, subject):
 
     pages = list(chunk_list(students, LABELS_PER_PAGE))
 
-    # =========================
-    # CREATE EACH PAGE
-    # =========================
     for page_index, page_students in enumerate(pages):
 
         table = doc.add_table(rows=ROWS, cols=COLS)
         table.autofit = False
 
-        # FIX ROW HEIGHTS
+        # Set row heights
         for row in table.rows:
             row.height = label_height
             row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
-        # =========================
-        # FILL LABELS
-        # =========================
+        # Fill each label cell
         for r in range(ROWS):
             for c in range(COLS):
 
@@ -112,6 +101,7 @@ def build_docx(students, year_group, subject):
                 student = format_name(page_students[idx])
                 cell = table.cell(r, c)
                 cell.width = label_width
+
                 for paragraph in cell.paragraphs:
                     paragraph.paragraph_format.space_before = Pt(4)
 
@@ -119,9 +109,12 @@ def build_docx(students, year_group, subject):
                 # LOGO (TOP LEFT)
                 # =====================
                 p_logo = cell.paragraphs[0]
+                p_logo.paragraph_format.space_before = Mm(1)
+                p_logo.paragraph_format.left_indent = Mm(1)
                 p_logo.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
 
                 run_logo = p_logo.add_run()
+
                 try:
                     run_logo.add_picture(logo_path, width=Cm(1.8))
                 except:
@@ -132,7 +125,6 @@ def build_docx(students, year_group, subject):
                 # =====================
                 p1 = cell.add_paragraph()
                 p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-
                 r1 = p1.add_run(student)
                 r1.bold = True
                 r1.font.size = Pt(18)
@@ -142,7 +134,6 @@ def build_docx(students, year_group, subject):
                 # =====================
                 p2 = cell.add_paragraph()
                 p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-
                 r2 = p2.add_run(subject)
                 r2.font.size = Pt(16)
 
@@ -151,23 +142,26 @@ def build_docx(students, year_group, subject):
                 # =====================
                 p3 = cell.add_paragraph()
                 p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-
                 r3 = p3.add_run(f"Year {year_group}")
                 r3.font.size = Pt(16)
 
                 # =====================
                 # ICON (BOTTOM RIGHT)
                 # =====================
+                spacer = cell.add_paragraph()
+                spacer.paragraph_format.space_after = Pt(12)
+
                 p_icon = cell.add_paragraph()
+                p_icon.paragraph_format.right_indent = Mm(1)
                 p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
 
                 run_icon = p_icon.add_run()
+
                 try:
                     run_icon.add_picture(icon_path, width=Cm(1.6))
                 except:
                     pass
 
-        # PAGE BREAK
         if page_index < len(pages) - 1:
             doc.add_page_break()
 
@@ -205,7 +199,7 @@ def generate():
 
 
 # =========================
-# RUN (RENDER SAFE)
+# RUN
 # =========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
