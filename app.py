@@ -4,6 +4,8 @@ from docx import Document
 from docx.shared import Cm, Pt, Mm
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.enum.table import WD_ROW_HEIGHT_RULE
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 import os
 from io import BytesIO
 
@@ -29,6 +31,7 @@ SUBJECT_ICONS = {
     "Music": "Music Icon.png"
 }
 
+
 # =========================
 # FORMAT NAME
 # =========================
@@ -37,9 +40,7 @@ def format_name(name):
 
     if "," in name:
         surname, firstname = name.split(",", 1)
-        surname = surname.strip()
-        firstname = firstname.strip()
-        return f"{firstname} {surname}"
+        return f"{firstname.strip()} {surname.strip()}"
 
     return name
 
@@ -53,27 +54,54 @@ def chunk_list(data, size):
 
 
 # =========================
-# BUILD WORD DOCUMENT
+# SET CELL MARGINS (CRITICAL)
+# =========================
+def set_cell_margins(cell, top=80, bottom=80, left=80, right=80):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+
+    tcMar = OxmlElement("w:tcMar")
+
+    for name, value in [("top", top), ("bottom", bottom), ("start", left), ("end", right)]:
+        node = OxmlElement(f"w:{name}")
+        node.set(qn("w:w"), str(value))
+        node.set(qn("w:type"), "dxa")
+        tcMar.append(node)
+
+    tcPr.append(tcMar)
+
+
+# =========================
+# BUILD DOCX (AVERY L7165)
 # =========================
 def build_docx(students, year_group, subject):
 
     doc = Document()
 
+    # =========================
+    # A4 PAGE SETUP
+    # =========================
     section = doc.sections[0]
-    section.page_width = Cm(21)
-    section.page_height = Cm(29.7)
+    section.page_width = Mm(210)
+    section.page_height = Mm(297)
 
-    section.top_margin = Cm(1.2)
-    section.bottom_margin = Cm(1.2)
-    section.left_margin = Cm(0.8)
-    section.right_margin = Cm(0.8)
+    # Top/Bottom margins (requested)
+    section.top_margin = Mm(12)
+    section.bottom_margin = Mm(12)
 
-    LABELS_PER_PAGE = 8
+    # Side margins
+    section.left_margin = Mm(5)
+    section.right_margin = Mm(5)
+
+    # =========================
+    # AVERY L7165 LABEL SIZE
+    # =========================
+    LABEL_W = Mm(99.06)
+    LABEL_H = Mm(67.73)
+
     ROWS = 4
     COLS = 2
-
-    label_width = Cm(9.8)
-    label_height = Cm(6.7)
+    LABELS_PER_PAGE = 8
 
     logo_path = os.path.join(ASSETS, "STMP Logo.png")
     icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
@@ -85,80 +113,84 @@ def build_docx(students, year_group, subject):
         table = doc.add_table(rows=ROWS, cols=COLS)
         table.autofit = False
 
-        # Set row heights
+        # FORCE COLUMN WIDTHS
+        for col in table.columns:
+            for cell in col.cells:
+                cell.width = LABEL_W
+
+        # FORCE ROW HEIGHTS
         for row in table.rows:
-            row.height = label_height
+            row.height = LABEL_H
             row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
-        # Fill each label cell
         for r in range(ROWS):
             for c in range(COLS):
 
                 idx = r * COLS + c
-                if idx >= len(page_students):
+                cell = table.cell(r, c)
+
+                # Clear cell
+                cell.text = ""
+
+                # Apply strict margins to prevent overflow between labels
+                set_cell_margins(cell, top=70, bottom=70, left=70, right=70)
+
+                if idx >= len(students):
                     continue
 
-                student = format_name(page_students[idx])
-                cell = table.cell(r, c)
-                cell.width = label_width
+                student = format_name(students[idx])
 
-                for paragraph in cell.paragraphs:
-                    paragraph.paragraph_format.space_before = Pt(4)
-
-                # =====================
-                # LOGO (TOP LEFT)
-                # =====================
+                # =========================
+                # LOGO (TOP)
+                # =========================
                 p_logo = cell.paragraphs[0]
-                p_logo.paragraph_format.space_before = Mm(1)
-                p_logo.paragraph_format.left_indent = Mm(1)
                 p_logo.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
 
                 run_logo = p_logo.add_run()
-
                 try:
-                    run_logo.add_picture(logo_path, width=Cm(1.8))
+                    run_logo.add_picture(logo_path, width=Mm(18))
                 except:
                     pass
 
-                # =====================
+                # =========================
                 # STUDENT NAME
-                # =====================
+                # =========================
                 p1 = cell.add_paragraph()
                 p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                 r1 = p1.add_run(student)
                 r1.bold = True
                 r1.font.size = Pt(18)
 
-                # =====================
+                # =========================
                 # SUBJECT
-                # =====================
+                # =========================
                 p2 = cell.add_paragraph()
                 p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                 r2 = p2.add_run(subject)
                 r2.font.size = Pt(16)
 
-                # =====================
+                # =========================
                 # YEAR GROUP
-                # =====================
+                # =========================
                 p3 = cell.add_paragraph()
                 p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                 r3 = p3.add_run(f"Year {year_group}")
                 r3.font.size = Pt(16)
 
-                # =====================
-                # ICON (BOTTOM RIGHT)
-                # =====================
-                spacer = cell.add_paragraph()
-                spacer.paragraph_format.space_after = Pt(12)
+                # =========================
+                # SPACER
+                # =========================
+                cell.add_paragraph()
 
+                # =========================
+                # ICON (BOTTOM RIGHT)
+                # =========================
                 p_icon = cell.add_paragraph()
-                p_icon.paragraph_format.right_indent = Mm(1)
                 p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
 
                 run_icon = p_icon.add_run()
-
                 try:
-                    run_icon.add_picture(icon_path, width=Cm(1.6))
+                    run_icon.add_picture(icon_path, width=Mm(16))
                 except:
                     pass
 
