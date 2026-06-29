@@ -31,9 +31,6 @@ SUBJECT_ICONS = {
 }
 
 
-# =========================
-# FORMAT NAME
-# =========================
 def format_name(name):
     name = str(name).strip()
     if "," in name:
@@ -42,39 +39,35 @@ def format_name(name):
     return name
 
 
-# =========================
-# CHUNK INTO PAGES (8 labels)
-# =========================
 def chunk_list(data, size=8):
     for i in range(0, len(data), size):
         yield data[i:i + size]
 
 
-# =========================
-# BUILD DOCX USING TEMPLATE
-# =========================
 def build_docx(students, year_group, subject):
 
     template_path = os.path.join(ASSETS, "label_template.docx")
-    base_doc = Document(template_path)
+    template_doc = Document(template_path)
 
-    template_table = base_doc.tables[0]
+    template_table = template_doc.tables[0]
 
     logo_path = os.path.join(ASSETS, "STMP Logo.png")
     icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
 
-    # Create fresh document
-    doc = Document()
+    final_doc = Document()
 
     pages = list(chunk_list(students, 8))
 
     for page_index, chunk in enumerate(pages):
 
-        # create new table with SAME structure as template
-        table = doc.add_table(rows=len(template_table.rows),
-                               cols=len(template_table.columns))
+        # 🔴 CRITICAL: reuse template table structure (NOT recreate)
+        table = final_doc.add_table(
+            rows=len(template_table.rows),
+            cols=len(template_table.columns)
+        )
 
-        table.autofit = False
+        # copy style from template table
+        table.style = template_table.style
 
         cells = [cell for row in table.rows for cell in row.cells]
 
@@ -87,9 +80,7 @@ def build_docx(students, year_group, subject):
 
             student = format_name(chunk[i])
 
-            # =====================
             # LOGO
-            # =====================
             p_logo = cell.paragraphs[0]
             run_logo = p_logo.add_run()
             try:
@@ -97,32 +88,24 @@ def build_docx(students, year_group, subject):
             except:
                 pass
 
-            # =====================
             # NAME
-            # =====================
             p1 = cell.add_paragraph()
             p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
             r1 = p1.add_run(student)
             r1.bold = True
             r1.font.size = Pt(16)
 
-            # =====================
             # SUBJECT
-            # =====================
             p2 = cell.add_paragraph()
             p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
             p2.add_run(subject).font.size = Pt(14)
 
-            # =====================
             # YEAR
-            # =====================
             p3 = cell.add_paragraph()
             p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
             p3.add_run(f"Year {year_group}").font.size = Pt(14)
 
-            # =====================
             # ICON
-            # =====================
             p_icon = cell.add_paragraph()
             p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
             run_icon = p_icon.add_run()
@@ -131,19 +114,15 @@ def build_docx(students, year_group, subject):
             except:
                 pass
 
-        # add page break
         if page_index != len(pages) - 1:
-            doc.add_page_break()
+            final_doc.add_page_break()
 
     buffer = BytesIO()
-    doc.save(buffer)
+    final_doc.save(buffer)
     buffer.seek(0)
     return buffer
 
 
-# =========================
-# ROUTES
-# =========================
 @app.route("/")
 def index():
     return render_template("index.html")
