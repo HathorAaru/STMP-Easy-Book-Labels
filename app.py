@@ -76,112 +76,56 @@ def set_cell_margins(cell, top=80, bottom=80, left=80, right=80):
 # =========================
 def build_docx(students, year_group, subject):
 
-    doc = Document()
+doc = Document(os.path.join(ASSETS, "label_template.docx"))
+table = doc.tables[0]
 
-    # =========================
-    # A4 PAGE SETUP
-    # =========================
-    section = doc.sections[0]
-    section.page_width = Mm(210)
-    section.page_height = Mm(297)
+cells = [cell for row in table.rows for cell in row.cells]
 
-    # UPDATED MARGINS (YOUR REQUEST)
-    section.top_margin = Mm(14)
-    section.bottom_margin = Mm(12)
+logo_path = os.path.join(ASSETS, "STMP Logo.png")
+icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
 
-    section.left_margin = Mm(5)
-    section.right_margin = Mm(5)
+for i, cell in enumerate(cells):
 
-    # =========================
-    # LABEL SPECS (AVERY L7165)
-    # =========================
-    LABEL_W = Mm(99.06)
-    LABEL_H = Mm(64.5)
+    cell.text = ""
 
-    ROWS = 4
-    COLS = 2
-    LABELS_PER_PAGE = 8
+    if i >= len(students):
+        continue
 
-    logo_path = os.path.join(ASSETS, "STMP Logo.png")
-    icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
+    student = format_name(students[i])
 
-    pages = list(chunk_list(students, LABELS_PER_PAGE))
+    # --- logo ---
+    p_logo = cell.paragraphs[0]
+    run_logo = p_logo.add_run()
+    try:
+        run_logo.add_picture(logo_path, width=Mm(18))
+    except:
+        pass
 
-    for page_index, page_students in enumerate(pages):
+    # --- name ---
+    p1 = cell.add_paragraph()
+    p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    r1 = p1.add_run(student)
+    r1.bold = True
+    r1.font.size = Pt(16)
 
-        table = doc.add_table(rows=ROWS, cols=COLS)
-        table.autofit = False
+    # --- subject ---
+    p2 = cell.add_paragraph()
+    p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p2.add_run(subject).font.size = Pt(14)
 
-        # FORCE ROW HEIGHTS
-        for row in table.rows:
-            row.height = LABEL_H
-            row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+    # --- year ---
+    p3 = cell.add_paragraph()
+    p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p3.add_run(f"Year {year_group}").font.size = Pt(14)
 
-        for r in range(ROWS):
-            for c in range(COLS):
-
-                idx = r * COLS + c
-                cell = table.cell(r, c)
-
-                # clear cell content
-                cell.text = ""
-
-                # prevents overflow into adjacent labels
-                set_cell_margins(cell, top=70, bottom=70, left=70, right=70)
-
-                if idx >= len(page_students):
-                    continue
-
-                student = format_name(page_students[idx])
-
-                # =========================
-                # LOGO (TOP LEFT, FIXED)
-                # =========================
-                p_logo = cell.paragraphs[0]
-                p_logo.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
-
-                run_logo = p_logo.add_run()
-                try:
-                    run_logo.add_picture(logo_path, width=Mm(18))
-                except:
-                    pass
-
-                # =========================
-                # STUDENT NAME (WRAPS NATURALLY)
-                # =========================
-                p1 = cell.add_paragraph()
-                p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-                r1 = p1.add_run(student)
-                r1.bold = True
-                r1.font.size = Pt(16)
-
-                # =========================
-                # SUBJECT
-                # =========================
-                p2 = cell.add_paragraph()
-                p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-                r2 = p2.add_run(subject)
-                r2.font.size = Pt(14)
-
-                # =========================
-                # YEAR GROUP
-                # =========================
-                p3 = cell.add_paragraph()
-                p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-                r3 = p3.add_run(f"Year {year_group}")
-                r3.font.size = Pt(14)
-
-                # =========================
-                # ICON (BOTTOM RIGHT, FIXED)
-                # =========================
-                p_icon = cell.add_paragraph()
-                p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
-
-                run_icon = p_icon.add_run()
-                try:
-                    run_icon.add_picture(icon_path, width=Mm(14))
-                except:
-                    pass
+    # --- icon ---
+    p_icon = cell.add_paragraph()
+    p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+    run_icon = p_icon.add_run()
+    try:
+        run_icon.add_picture(icon_path, width=Mm(14))
+    except:
+        pass
 
         if page_index < len(pages) - 1:
             doc.add_page_break()
