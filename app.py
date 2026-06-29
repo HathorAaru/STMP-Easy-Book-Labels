@@ -129,7 +129,7 @@ def build_docx(students, year_group, subject):
                 # prevents overflow into adjacent labels
                 set_cell_margins(cell, top=70, bottom=70, left=70, right=70)
 
-                if idx >= len(students):
+                if idx >= len(page_students):
                     continue
 
                 student = format_name(page_students[idx])
