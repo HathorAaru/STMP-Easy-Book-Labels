@@ -96,7 +96,7 @@ def build_docx(students, year_group, subject):
     # LABEL SPECS (AVERY L7165)
     # =========================
     LABEL_W = Mm(99.06)
-    LABEL_H = Mm(67.73)
+    LABEL_H = Mm(64.5)
 
     ROWS = 4
     COLS = 2
