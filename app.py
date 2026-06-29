@@ -132,7 +132,7 @@ def build_docx(students, year_group, subject):
                 if idx >= len(students):
                     continue
 
-                student = format_name(students[idx])
+                student = format_name(page_students[idx])
 
                 # =========================
                 # LOGO (TOP LEFT, FIXED)
