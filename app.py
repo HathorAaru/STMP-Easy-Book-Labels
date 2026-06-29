@@ -1,11 +1,11 @@
 from flask import Flask, render_template, request, send_file
 import pandas as pd
 from docx import Document
-from docx.shared import Pt, Mm
+from docx.shared import Pt, Mm, Cm
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.enum.table import WD_ROW_HEIGHT_RULE
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from copy import deepcopy
 import os
 from io import BytesIO
 
@@ -44,7 +44,28 @@ def format_name(name):
 
 
 # =========================
-# SPLIT INTO CHUNKS
+# CLEAN CELL COMPLETELY (IMPORTANT FIX)
+# =========================
+def clear_cell(cell):
+    tc = cell._tc
+    tc.clear_content()  # removes ALL hidden paragraphs safely
+
+
+# =========================
+# FIX TABLE STRUCTURE
+# =========================
+def fix_table_layout(table):
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+
+    # fixed layout
+    layout = OxmlElement("w:tblLayout")
+    layout.set(qn("w:type"), "fixed")
+    tblPr.append(layout)
+
+
+# =========================
+# CHUNK LIST
 # =========================
 def chunk_list(data, size):
     for i in range(0, len(data), size):
@@ -52,12 +73,59 @@ def chunk_list(data, size):
 
 
 # =========================
-# BUILD TABLE CLONE
+# BUILD ONE LABEL CELL
 # =========================
-def clone_table(doc, table):
-    new_tbl = deepcopy(table._tbl)
-    doc._body._element.append(new_tbl)
-    return doc.tables[-1]
+def build_label(cell, student, year_group, subject, logo_path, icon_path):
+
+    clear_cell(cell)
+
+    # --- logo ---
+    p_logo = cell.paragraphs[0]
+    run_logo = p_logo.add_run()
+    try:
+        run_logo.add_picture(logo_path, width=Mm(18))
+    except:
+        pass
+
+    # --- name ---
+    p1 = cell.add_paragraph()
+    p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p1.paragraph_format.space_before = Pt(0)
+    p1.paragraph_format.space_after = Pt(0)
+
+    r1 = p1.add_run(student)
+    r1.bold = True
+    r1.font.size = Pt(14)
+
+    # --- subject ---
+    p2 = cell.add_paragraph()
+    p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p2.paragraph_format.space_before = Pt(0)
+    p2.paragraph_format.space_after = Pt(0)
+
+    r2 = p2.add_run(subject)
+    r2.font.size = Pt(12)
+
+    # --- year ---
+    p3 = cell.add_paragraph()
+    p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p3.paragraph_format.space_before = Pt(0)
+    p3.paragraph_format.space_after = Pt(0)
+
+    r3 = p3.add_run(f"Year {year_group}")
+    r3.font.size = Pt(12)
+
+    # --- icon ---
+    p_icon = cell.add_paragraph()
+    p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+    p_icon.paragraph_format.space_before = Pt(0)
+    p_icon.paragraph_format.space_after = Pt(0)
+
+    run_icon = p_icon.add_run()
+    try:
+        run_icon.add_picture(icon_path, width=Mm(14))
+    except:
+        pass
 
 
 # =========================
@@ -67,66 +135,51 @@ def build_docx(students, year_group, subject):
 
     doc = Document(os.path.join(ASSETS, "label_template.docx"))
 
-    template_table = doc.tables[0]
-    cells_per_page = len(template_table.rows) * len(template_table.columns)
+    table = doc.tables[0]
+    fix_table_layout(table)
 
     logo_path = os.path.join(ASSETS, "STMP Logo.png")
     icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
 
-    pages = list(chunk_list(students, cells_per_page))
+    rows = len(table.rows)
+    cols = len(table.columns)
+    labels_per_page = rows * cols  # MUST be 8 in your template
+
+    pages = list(chunk_list(students, labels_per_page))
+
+    # IMPORTANT: prevent template ghost pages
+    doc._body.clear_content()
+    doc._body._element.append(table._tbl)
 
     for page_index, page_students in enumerate(pages):
 
-        # Use template table for first page, clone for others
-        table = template_table if page_index == 0 else clone_table(doc, template_table)
-
-        cells = [cell for row in table.rows for cell in row.cells]
-
-        for i, cell in enumerate(cells):
-            cell.text = ""
-
-            if i >= len(page_students):
-                continue
-
-            student = format_name(page_students[i])
-
-            # --- logo ---
-            p_logo = cell.paragraphs[0]
-            run_logo = p_logo.add_run()
-            try:
-                run_logo.add_picture(logo_path, width=Mm(18))
-            except:
-                pass
-
-            # --- name ---
-            p1 = cell.add_paragraph()
-            p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            r1 = p1.add_run(student)
-            r1.bold = True
-            r1.font.size = Pt(16)
-
-            # --- subject ---
-            p2 = cell.add_paragraph()
-            p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            p2.add_run(subject).font.size = Pt(14)
-
-            # --- year ---
-            p3 = cell.add_paragraph()
-            p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            p3.add_run(f"Year {year_group}").font.size = Pt(14)
-
-            # --- icon ---
-            p_icon = cell.add_paragraph()
-            p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
-            run_icon = p_icon.add_run()
-            try:
-                run_icon.add_picture(icon_path, width=Mm(14))
-            except:
-                pass
-
-        # Add page break AFTER each page except last
-        if page_index < len(pages) - 1:
+        if page_index > 0:
             doc.add_page_break()
+            table = doc.add_table(rows=rows, cols=cols)
+            fix_table_layout(table)
+
+        cells = [c for r in table.rows for c in r.cells]
+
+        # force exact label fill
+        for i in range(labels_per_page):
+            cell = cells[i]
+
+            if i < len(page_students):
+                build_label(
+                    cell,
+                    format_name(page_students[i]),
+                    year_group,
+                    subject,
+                    logo_path,
+                    icon_path
+                )
+            else:
+                clear_cell(cell)
+
+        # lock row heights (prevents “bleeding between columns”)
+        for row in table.rows:
+            row.height = Cm(3.8)
+            row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
 
     buffer = BytesIO()
     doc.save(buffer)
@@ -144,6 +197,7 @@ def index():
 
 @app.route("/generate", methods=["POST"])
 def generate():
+
     file = request.files["file"]
     year_group = request.form["year_group"]
     subject = request.form["subject"]
@@ -162,7 +216,7 @@ def generate():
 
 
 # =========================
-# RUN APP
+# RUN
 # =========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
