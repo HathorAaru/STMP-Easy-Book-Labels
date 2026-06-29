@@ -78,6 +78,10 @@ def build_docx(students, year_group, subject):
 
     doc = Document(os.path.join(ASSETS, "label_template.docx"))
     table = doc.tables[0]
+
+    print("ROWS:", len(table.rows))
+    print("COLS:", len(table.columns))
+    print("CELLS:", len([c for r in table.rows for c in r.cells]))
     
     cells = [cell for row in table.rows for cell in row.cells]
     
