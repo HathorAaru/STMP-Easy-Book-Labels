@@ -6,6 +6,7 @@ from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.enum.table import WD_ROW_HEIGHT_RULE
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from copy import deepcopy
 import os
 from io import BytesIO
 
@@ -44,27 +45,6 @@ def format_name(name):
 
 
 # =========================
-# CLEAN CELL COMPLETELY (IMPORTANT FIX)
-# =========================
-def clear_cell(cell):
-    tc = cell._tc
-    tc.clear_content()  # removes ALL hidden paragraphs safely
-
-
-# =========================
-# FIX TABLE STRUCTURE
-# =========================
-def fix_table_layout(table):
-    tbl = table._tbl
-    tblPr = tbl.tblPr
-
-    # fixed layout
-    layout = OxmlElement("w:tblLayout")
-    layout.set(qn("w:type"), "fixed")
-    tblPr.append(layout)
-
-
-# =========================
 # CHUNK LIST
 # =========================
 def chunk_list(data, size):
@@ -73,17 +53,36 @@ def chunk_list(data, size):
 
 
 # =========================
-# BUILD ONE LABEL CELL
+# CLEAR CELL SAFELY
+# =========================
+def clear_cell(cell):
+    cell._element.clear_content()
+
+
+# =========================
+# FIX TABLE LAYOUT
+# =========================
+def fix_table(table):
+    tbl = table._tbl
+    tblPr = tbl.tblPr
+
+    layout = OxmlElement("w:tblLayout")
+    layout.set(qn("w:type"), "fixed")
+    tblPr.append(layout)
+
+
+# =========================
+# BUILD LABEL
 # =========================
 def build_label(cell, student, year_group, subject, logo_path, icon_path):
 
     clear_cell(cell)
 
     # --- logo ---
-    p_logo = cell.paragraphs[0]
-    run_logo = p_logo.add_run()
+    p = cell.paragraphs[0]
+    run = p.add_run()
     try:
-        run_logo.add_picture(logo_path, width=Mm(18))
+        run.add_picture(logo_path, width=Mm(18))
     except:
         pass
 
@@ -92,7 +91,6 @@ def build_label(cell, student, year_group, subject, logo_path, icon_path):
     p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
     p1.paragraph_format.space_before = Pt(0)
     p1.paragraph_format.space_after = Pt(0)
-
     r1 = p1.add_run(student)
     r1.bold = True
     r1.font.size = Pt(14)
@@ -102,26 +100,22 @@ def build_label(cell, student, year_group, subject, logo_path, icon_path):
     p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
     p2.paragraph_format.space_before = Pt(0)
     p2.paragraph_format.space_after = Pt(0)
-
-    r2 = p2.add_run(subject)
-    r2.font.size = Pt(12)
+    p2.add_run(subject).font.size = Pt(12)
 
     # --- year ---
     p3 = cell.add_paragraph()
     p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
     p3.paragraph_format.space_before = Pt(0)
     p3.paragraph_format.space_after = Pt(0)
-
-    r3 = p3.add_run(f"Year {year_group}")
-    r3.font.size = Pt(12)
+    p3.add_run(f"Year {year_group}").font.size = Pt(12)
 
     # --- icon ---
-    p_icon = cell.add_paragraph()
-    p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
-    p_icon.paragraph_format.space_before = Pt(0)
-    p_icon.paragraph_format.space_after = Pt(0)
+    p4 = cell.add_paragraph()
+    p4.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+    p4.paragraph_format.space_before = Pt(0)
+    p4.paragraph_format.space_after = Pt(0)
+    run_icon = p4.add_run()
 
-    run_icon = p_icon.add_run()
     try:
         run_icon.add_picture(icon_path, width=Mm(14))
     except:
@@ -133,35 +127,34 @@ def build_label(cell, student, year_group, subject, logo_path, icon_path):
 # =========================
 def build_docx(students, year_group, subject):
 
-    doc = Document(os.path.join(ASSETS, "label_template.docx"))
+    template = Document(os.path.join(ASSETS, "label_template.docx"))
+    base_table = template.tables[0]
 
-    table = doc.tables[0]
-    fix_table_layout(table)
+    fix_table(base_table)
+
+    rows = len(base_table.rows)
+    cols = len(base_table.columns)
+    per_page = rows * cols  # MUST be 8 in your template
 
     logo_path = os.path.join(ASSETS, "STMP Logo.png")
     icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
 
-    rows = len(table.rows)
-    cols = len(table.columns)
-    labels_per_page = rows * cols  # MUST be 8 in your template
+    pages = list(chunk_list(students, per_page))
 
-    pages = list(chunk_list(students, labels_per_page))
-
-    # IMPORTANT: prevent template ghost pages
-    doc._body.clear_content()
-    doc._body._element.append(table._tbl)
+    # NEW document (clean safe start)
+    doc = Document()
 
     for page_index, page_students in enumerate(pages):
 
-        if page_index > 0:
-            doc.add_page_break()
-            table = doc.add_table(rows=rows, cols=cols)
-            fix_table_layout(table)
+        table = deepcopy(base_table._tbl)
+        doc._body._element.append(table)
 
-        cells = [c for r in table.rows for c in r.cells]
+        table_obj = doc.tables[-1]
+        fix_table(table_obj)
 
-        # force exact label fill
-        for i in range(labels_per_page):
+        cells = [c for r in table_obj.rows for c in r.cells]
+
+        for i in range(per_page):
             cell = cells[i]
 
             if i < len(page_students):
@@ -176,10 +169,14 @@ def build_docx(students, year_group, subject):
             else:
                 clear_cell(cell)
 
-        # lock row heights (prevents “bleeding between columns”)
-        for row in table.rows:
+        # lock row height (prevents overlap into gaps)
+        for row in table_obj.rows:
             row.height = Cm(3.8)
             row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+
+        # page break between tables
+        if page_index < len(pages) - 1:
+            doc.add_page_break()
 
     buffer = BytesIO()
     doc.save(buffer)
