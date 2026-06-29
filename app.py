@@ -10,6 +10,7 @@ app = Flask(__name__)
 
 ASSETS = "assets"
 
+
 # =========================
 # SUBJECT ICONS
 # =========================
@@ -42,7 +43,7 @@ def format_name(name):
 
 
 # =========================
-# CHUNKING (8 labels per page)
+# CHUNK INTO PAGES (8 labels)
 # =========================
 def chunk_list(data, size=8):
     for i in range(0, len(data), size):
@@ -50,21 +51,29 @@ def chunk_list(data, size=8):
 
 
 # =========================
-# BUILD DOCX
+# BUILD DOCX USING TEMPLATE
 # =========================
 def build_docx(students, year_group, subject):
 
-    doc = Document()
+    template_path = os.path.join(ASSETS, "label_template.docx")
+    base_doc = Document(template_path)
+
+    template_table = base_doc.tables[0]
 
     logo_path = os.path.join(ASSETS, "STMP Logo.png")
     icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
+
+    # Create fresh document
+    doc = Document()
 
     pages = list(chunk_list(students, 8))
 
     for page_index, chunk in enumerate(pages):
 
-        # 4 rows x 2 cols = 8 labels per page
-        table = doc.add_table(rows=4, cols=2)
+        # create new table with SAME structure as template
+        table = doc.add_table(rows=len(template_table.rows),
+                               cols=len(template_table.columns))
+
         table.autofit = False
 
         cells = [cell for row in table.rows for cell in row.cells]
@@ -78,9 +87,9 @@ def build_docx(students, year_group, subject):
 
             student = format_name(chunk[i])
 
-            # -------------------------
+            # =====================
             # LOGO
-            # -------------------------
+            # =====================
             p_logo = cell.paragraphs[0]
             run_logo = p_logo.add_run()
             try:
@@ -88,34 +97,32 @@ def build_docx(students, year_group, subject):
             except:
                 pass
 
-            # -------------------------
+            # =====================
             # NAME
-            # -------------------------
+            # =====================
             p1 = cell.add_paragraph()
             p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
             r1 = p1.add_run(student)
             r1.bold = True
             r1.font.size = Pt(16)
 
-            # -------------------------
+            # =====================
             # SUBJECT
-            # -------------------------
+            # =====================
             p2 = cell.add_paragraph()
             p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            r2 = p2.add_run(subject)
-            r2.font.size = Pt(14)
+            p2.add_run(subject).font.size = Pt(14)
 
-            # -------------------------
+            # =====================
             # YEAR
-            # -------------------------
+            # =====================
             p3 = cell.add_paragraph()
             p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-            r3 = p3.add_run(f"Year {year_group}")
-            r3.font.size = Pt(14)
+            p3.add_run(f"Year {year_group}").font.size = Pt(14)
 
-            # -------------------------
+            # =====================
             # ICON
-            # -------------------------
+            # =====================
             p_icon = cell.add_paragraph()
             p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
             run_icon = p_icon.add_run()
@@ -124,7 +131,7 @@ def build_docx(students, year_group, subject):
             except:
                 pass
 
-        # PAGE BREAK AFTER EACH 8-LABEL PAGE
+        # add page break
         if page_index != len(pages) - 1:
             doc.add_page_break()
 
@@ -162,8 +169,5 @@ def generate():
     )
 
 
-# =========================
-# RUN APP
-# =========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
