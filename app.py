@@ -153,7 +153,7 @@ def build_docx(students, year_group, subject):
                 p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                 r1 = p1.add_run(student)
                 r1.bold = True
-                r1.font.size = Pt(18)
+                r1.font.size = Pt(16)
 
                 # =========================
                 # SUBJECT
@@ -161,7 +161,7 @@ def build_docx(students, year_group, subject):
                 p2 = cell.add_paragraph()
                 p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                 r2 = p2.add_run(subject)
-                r2.font.size = Pt(16)
+                r2.font.size = Pt(14)
 
                 # =========================
                 # YEAR GROUP
@@ -169,12 +169,7 @@ def build_docx(students, year_group, subject):
                 p3 = cell.add_paragraph()
                 p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
                 r3 = p3.add_run(f"Year {year_group}")
-                r3.font.size = Pt(16)
-
-                # =========================
-                # SPACER
-                # =========================
-                cell.add_paragraph()
+                r3.font.size = Pt(14)
 
                 # =========================
                 # ICON (BOTTOM RIGHT, FIXED)
