@@ -76,64 +76,62 @@ def set_cell_margins(cell, top=80, bottom=80, left=80, right=80):
 # =========================
 def build_docx(students, year_group, subject):
 
-doc = Document(os.path.join(ASSETS, "label_template.docx"))
-table = doc.tables[0]
-
-cells = [cell for row in table.rows for cell in row.cells]
-
-logo_path = os.path.join(ASSETS, "STMP Logo.png")
-icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
-
-for i, cell in enumerate(cells):
-
-    cell.text = ""
-
-    if i >= len(students):
-        continue
-
-    student = format_name(students[i])
-
-    # --- logo ---
-    p_logo = cell.paragraphs[0]
-    run_logo = p_logo.add_run()
-    try:
-        run_logo.add_picture(logo_path, width=Mm(18))
-    except:
-        pass
-
-    # --- name ---
-    p1 = cell.add_paragraph()
-    p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    r1 = p1.add_run(student)
-    r1.bold = True
-    r1.font.size = Pt(16)
-
-    # --- subject ---
-    p2 = cell.add_paragraph()
-    p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    p2.add_run(subject).font.size = Pt(14)
-
-    # --- year ---
-    p3 = cell.add_paragraph()
-    p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    p3.add_run(f"Year {year_group}").font.size = Pt(14)
-
-    # --- icon ---
-    p_icon = cell.add_paragraph()
-    p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
-    run_icon = p_icon.add_run()
-    try:
-        run_icon.add_picture(icon_path, width=Mm(14))
-    except:
-        pass
-
-        if page_index < len(pages) - 1:
-            doc.add_page_break()
-
-    buffer = BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
-    return buffer
+    doc = Document(os.path.join(ASSETS, "label_template.docx"))
+    table = doc.tables[0]
+    
+    cells = [cell for row in table.rows for cell in row.cells]
+    
+    logo_path = os.path.join(ASSETS, "STMP Logo.png")
+    icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
+    
+    for i, cell in enumerate(cells):
+    
+        cell.text = ""
+    
+        if i >= len(students):
+            continue
+    
+        student = format_name(students[i])
+    
+        # --- logo ---
+        p_logo = cell.paragraphs[0]
+        run_logo = p_logo.add_run()
+        try:
+            run_logo.add_picture(logo_path, width=Mm(18))
+        except:
+            pass
+    
+        # --- name ---
+        p1 = cell.add_paragraph()
+        p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        r1 = p1.add_run(student)
+        r1.bold = True
+        r1.font.size = Pt(16)
+    
+        # --- subject ---
+        p2 = cell.add_paragraph()
+        p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        p2.add_run(subject).font.size = Pt(14)
+    
+        # --- year ---
+        p3 = cell.add_paragraph()
+        p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        p3.add_run(f"Year {year_group}").font.size = Pt(14)
+    
+        # --- icon ---
+        p_icon = cell.add_paragraph()
+        p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+        run_icon = p_icon.add_run()
+        try:
+            run_icon.add_picture(icon_path, width=Mm(14))
+        except:
+            pass
+    
+    
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        return buffer
 
 
 # =========================
