@@ -203,18 +203,32 @@ def fill_table(table, page_students, year_group, subject):
             clear_cell(cell)
             
 def fix_duplicate_drawing_ids(doc):
-    """
-    Word may show 'unreadable content' if copied images/drawings
-    contain duplicate wp:docPr IDs.
-    This renumbers them safely.
-    """
     body = doc._body._element
 
-    docPr_nodes = body.xpath(".//wp:docPr")
-
-    for i, node in enumerate(docPr_nodes, start=1):
+    for i, node in enumerate(body.xpath(".//wp:docPr"), start=1):
         node.set("id", str(i))
-        
+        node.set("name", f"Picture {i}")
+
+    for i, node in enumerate(body.xpath(".//pic:cNvPr"), start=1):
+        node.set("id", str(i))
+        node.set("name", f"Picture {i}")
+
+def remove_trailing_empty_paragraphs(doc):
+    body = doc._body._element
+    children = list(body)
+
+    for child in reversed(children):
+        if child.tag == qn("w:sectPr"):
+            continue
+
+        if child.tag == qn("w:p"):
+            text = "".join(child.itertext()).strip()
+            if not text:
+                body.remove(child)
+                continue
+
+        break
+
 def build_docx(students, year_group, subject):
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError("label_template.docx was not found.")
@@ -247,6 +261,8 @@ def build_docx(students, year_group, subject):
         table = doc.tables[-1]
         fill_table(table, page_students, year_group, subject)
 
+
+    remove_trailing_empty_paragraphs(doc)
     fix_duplicate_drawing_ids(doc)
 
     buffer = BytesIO()
