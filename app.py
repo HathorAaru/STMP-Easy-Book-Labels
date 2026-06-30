@@ -1,33 +1,37 @@
 from flask import Flask, render_template, request, send_file
 import pandas as pd
 from docx import Document
-from docx.shared import Pt, Mm
+from docx.shared import Mm, Pt
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
-from docx.enum.table import WD_ROW_HEIGHT_RULE
+from docx.enum.table import WD_ROW_HEIGHT_RULE, WD_CELL_VERTICAL_ALIGNMENT
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from copy import deepcopy
 import os
 from io import BytesIO
 
 app = Flask(__name__)
 
 ASSETS = "assets"
+TEMPLATE_PATH = "label_template.docx"
 
 # =========================
 # SUBJECT ICONS
 # =========================
 SUBJECT_ICONS = {
-    "Math": "Math Icon.png",
+    "Art and Design": "Art and Design Icon.png",
+    "Brass Band": "Brass Band Icon.png",
+    "Design and Technology": "Design and Technology Icon.png",
     "English": "English Icon.png",
+    "Geography": "Geography Icon.png",
+    "Guided Reading": "Guided Reading Icon.png",
+    "History": "History Icon.png",
+    "Homework": "Homework Icon.png",
+    "Math": "Math Icon.png",
+    "Music": "Music Icon.png",
+    "Religious Education": "Religious Education Icon.png",
     "Science": "Science Icon.png",
     "Spanish": "Spanish Icon.png",
-    "Art and Design": "Art and Design Icon.png",
-    "Guided Reading": "Guided Reading Icon.png",
-    "Design and Technology": "Design and Technology Icon.png",
-    "Homework": "Homework Icon.png",
-    "Religious Education": "Religious Education Icon.png",
-    "Geography": "Geography Icon.png",
-    "History": "History Icon.png",
-    "Music": "Music Icon.png",
-    "Brass Band": "Brass Band Icon.png"
 }
 
 # =========================
@@ -35,14 +39,16 @@ SUBJECT_ICONS = {
 # =========================
 def format_name(name):
     name = str(name).strip()
+
     if "," in name:
         surname, firstname = name.split(",", 1)
         return f"{firstname.strip()} {surname.strip()}"
+
     return name
 
 
 # =========================
-# CHUNK LIST (8 per page)
+# SPLIT INTO PAGES
 # =========================
 def chunk_list(data, size):
     for i in range(0, len(data), size):
@@ -50,112 +56,172 @@ def chunk_list(data, size):
 
 
 # =========================
-# CLEAR CELL CONTENT SAFELY
+# CLEAR CELL BUT KEEP TEMPLATE FORMAT
 # =========================
 def clear_cell(cell):
-    cell.text = ""
+    for paragraph in list(cell.paragraphs):
+        p = paragraph._element
+        p.getparent().remove(p)
+
+    for table in list(cell.tables):
+        tbl = table._element
+        tbl.getparent().remove(tbl)
 
 
 # =========================
-# BUILD SINGLE LABEL
+# SET FONT
 # =========================
-def build_label(cell, student, year_group, subject, logo_path, icon_path):
+def set_font(run, size, bold=False):
+    run.bold = bold
+    run.font.size = Pt(size)
+    run.font.name = "NTPreCursivefk"
 
+    rPr = run._element.get_or_add_rPr()
+    rFonts = rPr.rFonts
+    if rFonts is None:
+        rFonts = OxmlElement("w:rFonts")
+        rPr.append(rFonts)
+
+    rFonts.set(qn("w:ascii"), "NTPreCursivefk")
+    rFonts.set(qn("w:hAnsi"), "NTPreCursivefk")
+    rFonts.set(qn("w:eastAsia"), "NTPreCursivefk")
+    rFonts.set(qn("w:cs"), "NTPreCursivefk")
+
+
+# =========================
+# AUTO FONT SIZE FOR LONG NAMES
+# =========================
+def name_font_size(name):
+    length = len(name)
+
+    if length <= 18:
+        return 18
+    elif length <= 24:
+        return 16
+    elif length <= 30:
+        return 14
+    else:
+        return 12
+
+
+# =========================
+# FILL ONE LABEL CELL
+# =========================
+def fill_label(cell, student, year_group, subject):
     clear_cell(cell)
 
-    # Logo
-    p0 = cell.paragraphs[0]
-    run0 = p0.add_run()
-    try:
-        run0.add_picture(logo_path, width=Mm(18))
-    except:
-        pass
-
-    # Name
-    p1 = cell.add_paragraph()
-    p1.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    r1 = p1.add_run(student)
-    r1.bold = True
-    r1.font.size = Pt(14)
-
-    # Subject
-    p2 = cell.add_paragraph()
-    p2.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    r2 = p2.add_run(subject)
-    r2.font.size = Pt(12)
-
-    # Year
-    p3 = cell.add_paragraph()
-    p3.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
-    r3 = p3.add_run(f"Year {year_group}")
-    r3.font.size = Pt(12)
-
-    # Icon
-    p4 = cell.add_paragraph()
-    p4.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
-    run_icon = p4.add_run()
-
-    try:
-        run_icon.add_picture(icon_path, width=Mm(14))
-    except:
-        pass
-
-
-# =========================
-# MAIN DOCX BUILDER
-# =========================
-def build_docx(students, year_group, subject):
-
-    template = Document(os.path.join(ASSETS, "label_template.docx"))
-    base_table = template.tables[0]
-
-    rows = len(base_table.rows)
-    cols = len(base_table.columns)
-    per_page = rows * cols  # MUST be 8
+    cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
 
     logo_path = os.path.join(ASSETS, "STMP Logo.png")
     icon_path = os.path.join(ASSETS, SUBJECT_ICONS.get(subject, ""))
 
-    doc = Document()
+    # Logo
+    p_logo = cell.add_paragraph()
+    p_logo.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
+    p_logo.paragraph_format.space_after = Pt(0)
+    p_logo.paragraph_format.space_before = Pt(0)
 
-    pages = list(chunk_list(students, per_page))
+    run_logo = p_logo.add_run()
+    if os.path.exists(logo_path):
+        run_logo.add_picture(logo_path, width=Mm(18))
+
+    # Student name
+    p_name = cell.add_paragraph()
+    p_name.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p_name.paragraph_format.space_before = Pt(0)
+    p_name.paragraph_format.space_after = Pt(2)
+
+    r_name = p_name.add_run(student)
+    set_font(r_name, name_font_size(student), bold=True)
+
+    # Subject
+    p_subject = cell.add_paragraph()
+    p_subject.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p_subject.paragraph_format.space_before = Pt(0)
+    p_subject.paragraph_format.space_after = Pt(0)
+
+    r_subject = p_subject.add_run(subject)
+    set_font(r_subject, 16)
+
+    # Year group
+    p_year = cell.add_paragraph()
+    p_year.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+    p_year.paragraph_format.space_before = Pt(0)
+    p_year.paragraph_format.space_after = Pt(0)
+
+    r_year = p_year.add_run(f"Year {year_group}")
+    set_font(r_year, 16)
+
+    # Subject icon
+    p_icon = cell.add_paragraph()
+    p_icon.alignment = WD_PARAGRAPH_ALIGNMENT.RIGHT
+    p_icon.paragraph_format.space_before = Pt(0)
+    p_icon.paragraph_format.space_after = Pt(0)
+
+    run_icon = p_icon.add_run()
+    if os.path.exists(icon_path):
+        run_icon.add_picture(icon_path, width=Mm(18))
+
+
+# =========================
+# FILL TEMPLATE TABLE
+# =========================
+def fill_table(table, page_students, year_group, subject):
+    label_positions = [
+        (0, 0), (0, 2),
+        (1, 0), (1, 2),
+        (2, 0), (2, 2),
+        (3, 0), (3, 2),
+    ]
+
+    for row in table.rows:
+        row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
+
+    for i, (r, c) in enumerate(label_positions):
+        cell = table.cell(r, c)
+
+        if i < len(page_students):
+            student = format_name(page_students[i])
+            fill_label(cell, student, year_group, subject)
+        else:
+            clear_cell(cell)
+
+
+# =========================
+# BUILD DOCX
+# =========================
+def build_docx(students, year_group, subject):
+    if not os.path.exists(TEMPLATE_PATH):
+        raise FileNotFoundError(
+            "label_template.docx was not found. Put it in the same folder as app.py."
+        )
+
+    doc = Document(TEMPLATE_PATH)
+
+    if not doc.tables:
+        raise ValueError("The template must contain one label table.")
+
+    section = doc.sections[0]
+    section.top_margin = Mm(14)
+
+    template_table = doc.tables[0]
+    template_table_xml = deepcopy(template_table._tbl)
+
+    pages = list(chunk_list(students, 8))
+
+    if not pages:
+        pages = [[]]
 
     for page_index, page_students in enumerate(pages):
-
-        # ✅ TRUE TEMPLATE DUPLICATION (safe)
-        page_table = doc.add_table(rows=rows, cols=cols)
-        page_table.style = base_table.style
-
-        # copy structure feel (widths/layout are inherited from style)
-        idx = 0
-
-        for r in range(rows):
-            for c in range(cols):
-
-                cell = page_table.cell(r, c)
-
-                if idx < len(page_students):
-                    build_label(
-                        cell,
-                        format_name(page_students[idx]),
-                        year_group,
-                        subject,
-                        logo_path,
-                        icon_path
-                    )
-                else:
-                    clear_cell(cell)
-
-                idx += 1
-
-        # lock row height (prevents overflow into gaps)
-        for row in page_table.rows:
-            row.height = Mm(38)
-            row.height_rule = WD_ROW_HEIGHT_RULE.EXACTLY
-
-        # page break between duplicated template pages
-        if page_index < len(pages) - 1:
+        if page_index == 0:
+            table = doc.tables[0]
+        else:
             doc.add_page_break()
+            new_table_xml = deepcopy(template_table_xml)
+            doc._body._element.append(new_table_xml)
+            table = doc.tables[-1]
+
+        fill_table(table, page_students, year_group, subject)
 
     buffer = BytesIO()
     doc.save(buffer)
@@ -168,18 +234,18 @@ def build_docx(students, year_group, subject):
 # =========================
 @app.route("/")
 def index():
-    return render_template("index.html")
+    subjects = sorted(SUBJECT_ICONS.keys())
+    return render_template("index.html", subjects=subjects)
 
 
 @app.route("/generate", methods=["POST"])
 def generate():
-
     file = request.files["file"]
     year_group = request.form["year_group"]
     subject = request.form["subject"]
 
-    df = pd.read_excel(file, engine="openpyxl")
-    students = df.iloc[:, 0].dropna().astype(str).tolist()
+    df = pd.read_excel(file)
+    students = df.iloc[:, 0].dropna().tolist()
 
     docx_file = build_docx(students, year_group, subject)
 
@@ -192,7 +258,7 @@ def generate():
 
 
 # =========================
-# RUN
+# RUN APP
 # =========================
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
