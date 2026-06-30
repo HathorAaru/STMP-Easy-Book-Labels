@@ -135,16 +135,6 @@ def append_before_sectpr(doc, element):
         body.append(element)
 
 
-def add_page_break_before_next_table(doc):
-    p = OxmlElement("w:p")
-    r = OxmlElement("w:r")
-    br = OxmlElement("w:br")
-    br.set(qn("w:type"), "page")
-    r.append(br)
-    p.append(r)
-    append_before_sectpr(doc, p)
-
-
 def fill_label(cell, student, year_group, subject):
     clear_cell(cell)
     cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
@@ -211,8 +201,20 @@ def fill_table(table, page_students, year_group, subject):
             fill_label(cell, student, year_group, subject)
         else:
             clear_cell(cell)
+            
+def fix_duplicate_drawing_ids(doc):
+    """
+    Word may show 'unreadable content' if copied images/drawings
+    contain duplicate wp:docPr IDs.
+    This renumbers them safely.
+    """
+    body = doc._body._element
 
+    docPr_nodes = body.xpath(".//wp:docPr")
 
+    for i, node in enumerate(docPr_nodes, start=1):
+        node.set("id", str(i))
+        
 def build_docx(students, year_group, subject):
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError("label_template.docx was not found.")
@@ -232,16 +234,20 @@ def build_docx(students, year_group, subject):
     pages = list(chunk_list(students, 8))
 
     for page_index, page_students in enumerate(pages):
-        if page_index > 0:
-            add_page_break_before_next_table(doc)
-
         table_xml = deepcopy(template_table_xml)
+
+        # remove duplicate hidden Word elements
         remove_problem_xml(table_xml)
 
+        # IMPORTANT:
+        # Do NOT add manual page breaks.
+        # The full-page table naturally flows onto the next page.
         append_before_sectpr(doc, table_xml)
 
         table = doc.tables[-1]
         fill_table(table, page_students, year_group, subject)
+
+    fix_duplicate_drawing_ids(doc)
 
     buffer = BytesIO()
     doc.save(buffer)
